@@ -43,7 +43,7 @@ html,body{height:100%;background:#1e1e1e;overflow:hidden;touch-action:manipulati
   -webkit-tap-highlight-color:transparent;
   min-width:32px;text-align:center;flex-shrink:0;
 }
-.k:active,.k.held{background:#0078d4;color:#fff;border-color:#0078d4}
+.k.held{background:#0078d4;color:#fff;border-color:#0078d4}
 .k.mod{background:#4a3c2a;border-color:#7a6a4a;color:#e0c080}
 .k.mod.held{background:#d4a017;color:#000;border-color:#d4a017}
 
@@ -63,18 +63,28 @@ html,body{height:100%;background:#1e1e1e;overflow:hidden;touch-action:manipulati
   -webkit-tap-highlight-color:transparent;
   flex:1;min-width:0;max-width:42px;
 }
-#fullkb .fk:active,#fullkb .fk.held{background:#0078d4;color:#fff;border-color:#0078d4}
 #fullkb .fk.mod{background:#4a3c2a;border-color:#7a6a4a;color:#e0c080}
 #fullkb .fk.mod.held{background:#d4a017;color:#000;border-color:#d4a017}
 #fullkb .fk.wide{max-width:none;flex:1.6}
 #fullkb .fk.space{max-width:none;flex:5}
 #fullkb .fk.toggle{background:#2a4a3c;border-color:#4a7a6a;color:#80e0c0}
 
+/* rainbow flash on press */
+@keyframes rainbow-flash{
+  0%{background:linear-gradient(135deg,#ff4444,#ff8800);color:#fff;border-color:transparent}
+  25%{background:linear-gradient(135deg,#ffaa00,#44cc44);color:#fff;border-color:transparent}
+  50%{background:linear-gradient(135deg,#44cc44,#4488ff);color:#fff;border-color:transparent}
+  75%{background:linear-gradient(135deg,#4488ff,#aa44ff);color:#fff;border-color:transparent}
+  100%{background:#3c3c3c;color:#ccc;border-color:#555}
+}
+.fk.flash,.k.flash{animation:rainbow-flash .35s ease-out}
+
 /* split gap: hidden in portrait, visible in landscape */
 #fullkb .split{display:none;flex-shrink:0}
 @media (orientation:landscape){
   #fullkb .kbrow{max-width:none}
-  #fullkb .fk{max-width:none}
+  #fullkb .fk{max-width:none;padding:4px 0;font-size:12px}
+  #fullkb .fk.wide{flex:1.3}
   #fullkb .split{display:block;width:48px}
 }
 
@@ -166,11 +176,18 @@ term.onData(data => {
 });
 
 /* ========== helper: bind touch/click without stealing focus ========== */
+function flash(el) {
+  el.classList.remove('flash');
+  void el.offsetWidth; // reflow to restart animation
+  el.classList.add('flash');
+}
+
 function bindBtn(el, fn) {
   el.addEventListener('touchstart', e => e.preventDefault());
-  el.addEventListener('touchend', e => { e.preventDefault(); fn(); });
+  el.addEventListener('touchend', e => { e.preventDefault(); flash(el); fn(); });
   el.addEventListener('mousedown', e => e.preventDefault());
-  el.addEventListener('click', e => { e.preventDefault(); fn(); });
+  el.addEventListener('click', e => { e.preventDefault(); flash(el); fn(); });
+  el.addEventListener('animationend', () => el.classList.remove('flash'));
 }
 
 /* ========== compact key bar ========== */
@@ -239,16 +256,19 @@ const alphaRows = [
 function buildFullKB() {
   fullkbDiv.innerHTML = '';
 
-  // row 0: number/symbol row
-  addRow(alphaRows[0]);
+  // row 0: number/symbol row + backspace
+  addRow(alphaRows[0], {
+    after:[{label:'\u232b', send:'\x7f', cls:'wide'}]
+  });
   // row 1: qwerty
   addRow(alphaRows[1]);
-  // row 2: home row
-  addRow(alphaRows[2]);
-  // row 3: shift + bottom row + backspace
+  // row 2: home row + enter
+  addRow(alphaRows[2], {
+    after:[{label:'\u21b5', send:'\r', cls:'wide'}]
+  });
+  // row 3: shift + bottom row
   addRow(alphaRows[3], {
     before:[{label:'Shift', mod:'shift', cls:'mod wide'}],
-    after:[{label:'\u232b', send:'\x7f', cls:'wide'}]
   });
   // row 4: modifiers + space + special
   addSpecialRow();
@@ -294,7 +314,6 @@ function addSpecialRow() {
     {label:'\u2192', send:'\x1b[C'},
     {label:'\u2191', send:'\x1b[A'},
     {label:'\u2193', send:'\x1b[B'},
-    {label:'\u21b5', send:'\r'},
     {label:'\u2328', action:'toggle', cls:'toggle'},
   ];
   left.forEach(k => row.appendChild(makeFK(k)));
