@@ -87,11 +87,20 @@ html,body{height:100%;background:#1e1e1e;overflow:hidden;touch-action:manipulati
 }
 
 .hidden{display:none!important}
+
+/* floating show-keyboard button */
+#showkb{
+  display:none;position:fixed;bottom:8px;left:8px;z-index:10;
+  background:#3c3c3c;color:#80e0c0;border:1px solid #4a7a6a;border-radius:6px;
+  padding:8px 12px;font-size:16px;font-family:monospace;
+  cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;
+}
 </style>
 </head>
 <body>
 <div id="terminal"></div>
 <div id="keys"></div>
+<span id="showkb">⌨</span>
 <div id="fullkb"></div>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
@@ -260,8 +269,9 @@ const alphaRows = [
 function buildFullKB() {
   fullkbDiv.innerHTML = '';
 
-  // row 0: number/symbol row + backspace
+  // row 0: esc + number/symbol row + backspace
   addRow(alphaRows[0], {
+    before:[{label:'Esc', send:'\x1b'}],
     after:[{label:'\u232b', send:'\x7f', cls:'wide'}]
   });
   // row 1: qwerty
@@ -324,7 +334,7 @@ function addSpecialRow() {
   const row = document.createElement('div');
   row.className = 'kbrow';
   const left = [
-    {label:'Esc', send:'\x1b'},
+    {label:'\u25bc', action:'hide', cls:'toggle'},
     {label:'Ctrl', mod:'ctrl', cls:'mod'},
     {label:'Alt', mod:'alt', cls:'mod'},
     {label:'Tab', send:'\t'},
@@ -351,6 +361,7 @@ function makeFK(k) {
 
   bindBtn(btn, () => {
     if (k.action === 'toggle') { toggleFullKB(false); return; }
+    if (k.action === 'hide') { hideFullKB(); return; }
     if (k.mod) { toggleMod(k.mod); return; }
 
     // shift: for letters, uppercase; for symbols, already resolved in label
@@ -387,19 +398,37 @@ function suppressPhoneKB(yes) {
 
 function toggleFullKB(on) {
   fullkbActive = on;
+  const showBtn = document.getElementById('showkb');
   if (on) {
     buildFullKB();
     keysDiv.classList.add('hidden');
     fullkbDiv.style.display = 'block';
+    showBtn.style.display = 'none';
     suppressPhoneKB(true);
   } else {
     fullkbDiv.style.display = 'none';
+    showBtn.style.display = 'none';
     keysDiv.classList.remove('hidden');
     suppressPhoneKB(false);
     resetMods();
   }
   setTimeout(() => fitAddon.fit(), 50);
 }
+
+function hideFullKB() {
+  fullkbDiv.style.display = 'none';
+  const showBtn = document.getElementById('showkb');
+  showBtn.style.display = 'block';
+  setTimeout(() => fitAddon.fit(), 50);
+}
+
+// floating show-keyboard button
+const showKbBtn = document.getElementById('showkb');
+bindBtn(showKbBtn, () => {
+  showKbBtn.style.display = 'none';
+  fullkbDiv.style.display = 'block';
+  setTimeout(() => fitAddon.fit(), 50);
+});
 </script>
 </body>
 </html>"""
