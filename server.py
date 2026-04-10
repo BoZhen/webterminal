@@ -69,23 +69,21 @@ html,body{height:100%;background:#1e1e1e;overflow:hidden;touch-action:manipulati
 #fullkb .fk.space{max-width:none;flex:5}
 #fullkb .fk.toggle{background:#2a4a3c;border-color:#4a7a6a;color:#80e0c0}
 
-/* rainbow flash on press */
-@keyframes rainbow-flash{
-  0%{background:linear-gradient(135deg,#ff4444,#ff8800);color:#fff;border-color:transparent}
-  25%{background:linear-gradient(135deg,#ffaa00,#44cc44);color:#fff;border-color:transparent}
-  50%{background:linear-gradient(135deg,#44cc44,#4488ff);color:#fff;border-color:transparent}
-  75%{background:linear-gradient(135deg,#4488ff,#aa44ff);color:#fff;border-color:transparent}
+/* position-based color flash on press */
+@keyframes pos-flash{
+  0%{background:hsl(var(--hue),80%,55%);color:#fff;border-color:hsl(var(--hue),80%,40%)}
   100%{background:#3c3c3c;color:#ccc;border-color:#555}
 }
-.fk.flash,.k.flash{animation:rainbow-flash .35s ease-out}
+.fk.flash,.k.flash{animation:pos-flash .35s ease-out}
 
 /* split gap: hidden in portrait, visible in landscape */
 #fullkb .split{display:none;flex-shrink:0}
 @media (orientation:landscape){
-  #fullkb .kbrow{max-width:none}
-  #fullkb .fk{max-width:none;padding:4px 0;font-size:12px}
-  #fullkb .fk.wide{flex:1.3}
-  #fullkb .split{display:block;width:48px}
+  #fullkb .kbrow{max-width:none;justify-content:flex-start}
+  #fullkb .fk{max-width:42px;padding:5px 0;font-size:13px}
+  #fullkb .fk.wide{max-width:62px;flex:1.3}
+  #fullkb .fk.space{max-width:none}
+  #fullkb .split{display:block;flex:1;min-width:32px}
 }
 
 .hidden{display:none!important}
@@ -241,6 +239,12 @@ togBtn.title = 'Full keyboard';
 bindBtn(togBtn, () => toggleFullKB(true));
 keysDiv.appendChild(togBtn);
 
+// assign hues to compact bar keys linearly
+const compactBtns = keysDiv.querySelectorAll('.k');
+compactBtns.forEach((btn, i) => {
+  btn.style.setProperty('--hue', Math.round(i / Math.max(compactBtns.length - 1, 1) * 300));
+});
+
 /* ========== full virtual keyboard ========== */
 const fullkbDiv = document.getElementById('fullkb');
 let fullkbActive = false;
@@ -272,6 +276,22 @@ function buildFullKB() {
   });
   // row 4: modifiers + space + special
   addSpecialRow();
+  assignHues(fullkbDiv);
+}
+
+function assignHues(container) {
+  const rows = container.querySelectorAll('.kbrow');
+  const totalRows = rows.length;
+  rows.forEach((row, ri) => {
+    const keys = row.querySelectorAll('.fk,.k');
+    const totalCols = keys.length;
+    keys.forEach((key, ci) => {
+      const ry = totalRows > 1 ? ri / (totalRows - 1) : 0;
+      const rx = totalCols > 1 ? ci / (totalCols - 1) : 0;
+      const diag = (ry + rx) / 2;
+      key.style.setProperty('--hue', Math.round(diag * 300));
+    });
+  });
 }
 
 function makeSplit() {

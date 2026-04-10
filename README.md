@@ -9,6 +9,7 @@ Lightweight web-based terminal with a mobile-friendly virtual key bar. Single Py
 - Full virtual QWERTY keyboard mode (toggle via ⌨ button): complete letter, number, and symbol input without the phone soft keyboard
 - Modifier keys (Ctrl/Alt/Shift) are toggle-style: tap to activate, then tap another key or type on the soft keyboard to send the combo
 - Split keyboard in landscape: keys split into left/right halves for ergonomic thumb typing
+- Position-based rainbow flash feedback: each key lights up in a color based on its position (red at top-left to purple at bottom-right)
 - Auto-fit terminal to viewport, responsive on resize
 - Clickable URLs (web-links addon)
 
