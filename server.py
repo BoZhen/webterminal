@@ -70,6 +70,14 @@ html,body{height:100%;background:#1e1e1e;overflow:hidden;touch-action:manipulati
 #fullkb .fk.space{max-width:none;flex:5}
 #fullkb .fk.toggle{background:#2a4a3c;border-color:#4a7a6a;color:#80e0c0}
 
+/* split gap: hidden in portrait, visible in landscape */
+#fullkb .split{display:none;flex-shrink:0}
+@media (orientation:landscape){
+  #fullkb .kbrow{max-width:none}
+  #fullkb .fk{max-width:none}
+  #fullkb .split{display:block;width:48px}
+}
+
 .hidden{display:none!important}
 </style>
 </head>
@@ -246,29 +254,42 @@ function buildFullKB() {
   addSpecialRow();
 }
 
+function makeSplit() {
+  const sp = document.createElement('span');
+  sp.className = 'split';
+  return sp;
+}
+
 function addRow(keys, extra) {
   const row = document.createElement('div');
   row.className = 'kbrow';
-  if (extra && extra.before) extra.before.forEach(k => row.appendChild(makeFK(k)));
+  const allItems = [];
+  if (extra && extra.before) extra.before.forEach(k => allItems.push(makeFK(k)));
   keys.forEach(k => {
     const shifted = modState.shift || symLayer;
     const label = (shifted && k.s) ? k.s : k.l;
     const send = label;
-    row.appendChild(makeFK({label, send}));
+    allItems.push(makeFK({label, send}));
   });
-  if (extra && extra.after) extra.after.forEach(k => row.appendChild(makeFK(k)));
+  if (extra && extra.after) extra.after.forEach(k => allItems.push(makeFK(k)));
+  const mid = Math.ceil(allItems.length / 2);
+  allItems.forEach((el, i) => {
+    row.appendChild(el);
+    if (i === mid - 1) row.appendChild(makeSplit());
+  });
   fullkbDiv.appendChild(row);
 }
 
 function addSpecialRow() {
   const row = document.createElement('div');
   row.className = 'kbrow';
-  const specials = [
+  const left = [
     {label:'Esc', send:'\x1b'},
     {label:'Ctrl', mod:'ctrl', cls:'mod'},
     {label:'Alt', mod:'alt', cls:'mod'},
     {label:'Tab', send:'\t'},
-    {label:'', send:' ', cls:'space'},
+  ];
+  const right = [
     {label:'\u2190', send:'\x1b[D'},
     {label:'\u2192', send:'\x1b[C'},
     {label:'\u2191', send:'\x1b[A'},
@@ -276,7 +297,10 @@ function addSpecialRow() {
     {label:'\u21b5', send:'\r'},
     {label:'\u2328', action:'toggle', cls:'toggle'},
   ];
-  specials.forEach(k => row.appendChild(makeFK(k)));
+  left.forEach(k => row.appendChild(makeFK(k)));
+  row.appendChild(makeFK({label:'', send:' ', cls:'space'}));
+  row.appendChild(makeSplit());
+  right.forEach(k => row.appendChild(makeFK(k)));
   fullkbDiv.appendChild(row);
 }
 
