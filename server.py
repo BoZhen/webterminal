@@ -342,6 +342,7 @@ function buildFullKB() {
     send: capsActive && c >= 'a' && c <= 'z' ? c.toUpperCase() : c})), {
     before:[{label:'Shift', mod:'shift', cls:'mod'}],
     after: row3after,
+    splitAt: symLayer ? 4 : undefined,
   });
   // row 4: ▼ Ctrl Alt [space] ← ↓ → ⌨
   addBottomRow();
@@ -376,7 +377,7 @@ function addRow(keys, extra) {
   if (extra && extra.before) extra.before.forEach(k => allItems.push(makeFK(k)));
   keys.forEach(k => allItems.push(makeFK(k)));
   if (extra && extra.after) extra.after.forEach(k => allItems.push(makeFK(k)));
-  const mid = Math.ceil(allItems.length / 2);
+  const mid = (extra && extra.splitAt != null) ? extra.splitAt : Math.ceil(allItems.length / 2);
   allItems.forEach((el, i) => {
     row.appendChild(el);
     if (i === mid - 1) row.appendChild(makeSplit());
