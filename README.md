@@ -36,11 +36,13 @@ Open `http://<host>:7683` in a browser.
 | Variable | Default | Description |
 |---|---|---|
 | `WEBTERMINAL_PORT` | `7683` | Listen port |
-| `SHELL` | `/usr/bin/bash` | Shell to spawn |
+| `SHELL` | System login shell, fallback `/usr/bin/bash` | Shell to spawn |
 
 ```bash
 WEBTERMINAL_PORT=8888 SHELL=/usr/bin/fish python server.py
 ```
+
+Note: `SHELL` reads from the system environment variable, which is your **login shell**, not necessarily the shell you launched the server from. Override it explicitly if you want a different shell.
 
 ## Mobile usage
 
