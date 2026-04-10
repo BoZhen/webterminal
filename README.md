@@ -50,7 +50,7 @@ Note: `SHELL` reads from the system environment variable, which is your **login 
 
 ## Mobile usage
 
-Designed for accessing a remote machine's terminal from a phone.
+Designed for accessing a remote machine's terminal from a mobile device (or any device with a browser).
 
 The bottom bar provides modifier and special keys that phone soft keyboards lack. Modifier keys are sticky: tap Ctrl, then type `c` on the soft keyboard to send Ctrl-C.
 

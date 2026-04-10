@@ -80,6 +80,11 @@ html,body{height:100%;background:#1e1e1e;overflow:hidden;touch-action:manipulati
 }
 .fk.flash,.k.flash{animation:pos-flash .35s ease-out}
 
+/* wide portrait (e.g. iPad): let keys stretch to fill width */
+@media (orientation:portrait) and (min-width:600px){
+  #fullkb .fk{max-width:none;padding:14px 0;font-size:16px}
+}
+
 /* split gap: hidden in portrait, visible in landscape */
 #fullkb .split{display:none;flex-shrink:0}
 @media (orientation:landscape){
@@ -88,6 +93,11 @@ html,body{height:100%;background:#1e1e1e;overflow:hidden;touch-action:manipulati
   #fullkb .fk.wide{max-width:62px;flex:1.3}
   #fullkb .fk.space{max-width:none}
   #fullkb .split{display:block;flex:1;min-width:32px}
+}
+/* landscape on tablet-sized screens (e.g. iPad) */
+@media (orientation:landscape) and (min-height:600px){
+  #fullkb .fk{padding:10px 0;font-size:14px;max-width:56px}
+  #fullkb .fk.wide{max-width:80px}
 }
 
 .hidden{display:none!important}
@@ -252,10 +262,19 @@ togBtn.title = 'Full keyboard';
 bindBtn(togBtn, () => toggleFullKB(true));
 keysDiv.appendChild(togBtn);
 
-// assign hues to compact bar keys linearly
+// position → hue: piecewise linear for balanced rainbow
+function posToHue(t) {
+  if (t < 0.35) return t / 0.35 * 80;            // red → yellow
+  if (t < 0.5)  return 80 + (t-0.35) / 0.15 * 80; // yellow → cyan
+  if (t < 0.7)  return 160 + (t-0.5) / 0.2 * 80;  // cyan → blue
+  return 240 + (t-0.7) / 0.3 * 60;                 // blue → purple
+}
+
+// assign hues to compact bar keys
 const compactBtns = keysDiv.querySelectorAll('.k');
 compactBtns.forEach((btn, i) => {
-  btn.style.setProperty('--hue', Math.round(i / Math.max(compactBtns.length - 1, 1) * 300));
+  const t = i / Math.max(compactBtns.length - 1, 1);
+  btn.style.setProperty('--hue', Math.round(posToHue(t)));
 });
 
 /* ========== full virtual keyboard ========== */
@@ -303,7 +322,7 @@ function assignHues(container) {
       const ry = totalRows > 1 ? ri / (totalRows - 1) : 0;
       const rx = totalCols > 1 ? ci / (totalCols - 1) : 0;
       const diag = (ry + rx) / 2;
-      key.style.setProperty('--hue', Math.round(diag * 300));
+      key.style.setProperty('--hue', Math.round(posToHue(diag)));
     });
   });
 }
