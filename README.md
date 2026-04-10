@@ -40,7 +40,7 @@ WEBTERMINAL_PORT=8888 SHELL=/usr/bin/fish python server.py
 
 ## Mobile usage
 
-Designed for accessing a remote machine's terminal from a phone (e.g. over Tailscale).
+Designed for accessing a remote machine's terminal from a phone.
 
 The bottom bar provides modifier and special keys that phone soft keyboards lack. Modifier keys are sticky: tap Ctrl, then type `c` on the soft keyboard to send Ctrl-C.
 
