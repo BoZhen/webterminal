@@ -37,9 +37,13 @@ Open `http://<host>:7683` in a browser.
 |---|---|---|
 | `WEBTERMINAL_PORT` | `7683` | Listen port |
 | `SHELL` | System login shell, fallback `/usr/bin/bash` | Shell to spawn |
+| `WEBTERMINAL_AUTH` | *(empty, disabled)* | HTTP Basic Auth in `user:pass` format |
 
 ```bash
 WEBTERMINAL_PORT=8888 SHELL=/usr/bin/fish python server.py
+
+# with login password
+WEBTERMINAL_AUTH=username:userpassword python server.py
 ```
 
 Note: `SHELL` reads from the system environment variable, which is your **login shell**, not necessarily the shell you launched the server from. Override it explicitly if you want a different shell.

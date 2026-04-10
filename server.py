@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Lightweight web terminal with mobile-friendly virtual keys."""
 
+import base64
 import fcntl
 import os
 import pty
+import secrets
 import select
 import signal
 import struct
@@ -15,6 +17,7 @@ import tornado.websocket
 
 SHELL = os.environ.get("SHELL", "/usr/bin/bash")
 PORT = int(os.environ.get("WEBTERMINAL_PORT", "7683"))
+AUTH = os.environ.get("WEBTERMINAL_AUTH", "")  # user:pass
 
 HTML = r"""<!DOCTYPE html>
 <html>
@@ -435,13 +438,47 @@ bindBtn(showKbBtn, () => {
 </html>"""
 
 
-class IndexHandler(tornado.web.RequestHandler):
+class BasicAuthMixin:
+    """HTTP Basic Auth check. Skipped when AUTH is empty."""
+
+    def _check_auth(self):
+        if not AUTH:
+            return True
+        header = self.request.headers.get("Authorization", "")
+        if header.startswith("Basic "):
+            try:
+                decoded = base64.b64decode(header[6:]).decode()
+                if secrets.compare_digest(decoded, AUTH):
+                    return True
+            except Exception:
+                pass
+        self.set_status(401)
+        self.set_header("WWW-Authenticate", 'Basic realm="webterminal"')
+        self.finish()
+        return False
+
+
+class IndexHandler(BasicAuthMixin, tornado.web.RequestHandler):
     def get(self):
+        if not self._check_auth():
+            return
         self.write(HTML)
 
 
-class TermWebSocket(tornado.websocket.WebSocketHandler):
+class TermWebSocket(BasicAuthMixin, tornado.websocket.WebSocketHandler):
     def open(self):
+        if AUTH:
+            header = self.request.headers.get("Authorization", "")
+            ok = False
+            if header.startswith("Basic "):
+                try:
+                    decoded = base64.b64decode(header[6:]).decode()
+                    ok = secrets.compare_digest(decoded, AUTH)
+                except Exception:
+                    pass
+            if not ok:
+                self.close(4401, "Unauthorized")
+                return
         self.fd = None
         self.child_pid = None
         pid, fd = pty.openpty()
@@ -525,6 +562,7 @@ def main():
     app.listen(PORT, address="0.0.0.0")
     print(f"Web terminal running at http://0.0.0.0:{PORT}")
     print(f"Shell: {SHELL}")
+    print(f"Auth: {'enabled' if AUTH else 'disabled'}")
     tornado.ioloop.IOLoop.current().start()
 
 
