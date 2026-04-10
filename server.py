@@ -467,6 +467,8 @@ class IndexHandler(BasicAuthMixin, tornado.web.RequestHandler):
 
 class TermWebSocket(BasicAuthMixin, tornado.websocket.WebSocketHandler):
     def open(self):
+        self.fd = None
+        self.child_pid = None
         if AUTH:
             header = self.request.headers.get("Authorization", "")
             ok = False
@@ -479,8 +481,6 @@ class TermWebSocket(BasicAuthMixin, tornado.websocket.WebSocketHandler):
             if not ok:
                 self.close(4401, "Unauthorized")
                 return
-        self.fd = None
-        self.child_pid = None
         pid, fd = pty.openpty()
         # pid from pty.fork pattern: use fork
         child_pid = os.fork()
