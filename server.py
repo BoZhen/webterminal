@@ -28,6 +28,8 @@ HTML = r"""<!DOCTYPE html>
 html,body{height:100%;background:#1e1e1e;overflow:hidden;touch-action:manipulation;
   display:flex;flex-direction:column}
 #terminal{flex:1;min-height:0}
+
+/* --- compact key bar (default mode) --- */
 #keys{
   display:flex;flex-wrap:wrap;gap:2px;padding:3px 2px;
   background:#2d2d2d;border-top:1px solid #444;
@@ -44,12 +46,37 @@ html,body{height:100%;background:#1e1e1e;overflow:hidden;touch-action:manipulati
 .k:active,.k.held{background:#0078d4;color:#fff;border-color:#0078d4}
 .k.mod{background:#4a3c2a;border-color:#7a6a4a;color:#e0c080}
 .k.mod.held{background:#d4a017;color:#000;border-color:#d4a017}
-.sp{flex-grow:1}
+
+/* --- full keyboard --- */
+#fullkb{
+  display:none;flex-shrink:0;
+  background:#2d2d2d;border-top:1px solid #444;
+  padding:3px 2px;
+  padding-bottom:calc(4px + env(safe-area-inset-bottom));
+}
+#fullkb .kbrow{display:flex;gap:2px;margin-bottom:2px;justify-content:center}
+#fullkb .kbrow:last-child{margin-bottom:0}
+#fullkb .fk{
+  background:#3c3c3c;color:#ccc;border:1px solid #555;border-radius:4px;
+  padding:6px 0;font-size:14px;font-family:monospace;
+  cursor:pointer;user-select:none;text-align:center;
+  -webkit-tap-highlight-color:transparent;
+  flex:1;min-width:0;max-width:42px;
+}
+#fullkb .fk:active,#fullkb .fk.held{background:#0078d4;color:#fff;border-color:#0078d4}
+#fullkb .fk.mod{background:#4a3c2a;border-color:#7a6a4a;color:#e0c080}
+#fullkb .fk.mod.held{background:#d4a017;color:#000;border-color:#d4a017}
+#fullkb .fk.wide{max-width:none;flex:1.6}
+#fullkb .fk.space{max-width:none;flex:5}
+#fullkb .fk.toggle{background:#2a4a3c;border-color:#4a7a6a;color:#80e0c0}
+
+.hidden{display:none!important}
 </style>
 </head>
 <body>
 <div id="terminal"></div>
 <div id="keys"></div>
+<div id="fullkb"></div>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
@@ -69,64 +96,89 @@ const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
 const ws = new WebSocket(`${proto}//${location.host}/ws`);
 ws.binaryType = 'arraybuffer';
 
-ws.onopen = () => {
-  sendResize();
-  term.focus();
-};
+ws.onopen = () => { sendResize(); term.focus(); };
 ws.onmessage = e => {
   if (e.data instanceof ArrayBuffer) term.write(new Uint8Array(e.data));
   else term.write(e.data);
 };
 ws.onclose = () => term.write('\r\n\x1b[31m[连接已断开]\x1b[0m\r\n');
 
+function sendResize() {
+  if (ws.readyState === 1)
+    ws.send(JSON.stringify({type:'resize', cols:term.cols, rows:term.rows}));
+}
+term.onResize(() => sendResize());
+window.addEventListener('resize', () => fitAddon.fit());
+new ResizeObserver(() => fitAddon.fit()).observe(document.getElementById('terminal'));
+
+/* ========== shared modifier state ========== */
+const modState = {ctrl:false, alt:false, shift:false};
+
+function resetMods() {
+  modState.ctrl = false; modState.alt = false; modState.shift = false;
+  document.querySelectorAll('.mod').forEach(b => b.classList.remove('held'));
+}
+
+function sendData(raw) {
+  if (ws.readyState !== 1) return;
+  let data = raw;
+  if (modState.shift && data.length === 1 && data >= 'a' && data <= 'z')
+    data = data.toUpperCase();
+  if (modState.ctrl && data.length === 1 && data >= ' ' && data <= '~')
+    data = String.fromCharCode(data.toUpperCase().charCodeAt(0) & 0x1f);
+  if (modState.alt) data = '\x1b' + data;
+  ws.send(data);
+}
+
+function toggleMod(name) {
+  modState[name] = !modState[name];
+  document.querySelectorAll(`[data-mod="${name}"]`).forEach(
+    b => b.classList.toggle('held', modState[name])
+  );
+}
+
+/* ========== phone keyboard passthrough (compact bar mode) ========== */
 term.onData(data => {
   if (ws.readyState !== 1) return;
   if (modState.ctrl || modState.alt || modState.shift) {
     let out = '';
     for (let i = 0; i < data.length; i++) {
       let ch = data[i];
-      if (modState.shift && ch >= 'a' && ch <= 'z') {
-        ch = ch.toUpperCase();
-      }
-      if (modState.ctrl && ch >= ' ' && ch <= '~') {
+      if (modState.shift && ch >= 'a' && ch <= 'z') ch = ch.toUpperCase();
+      if (modState.ctrl && ch >= ' ' && ch <= '~')
         ch = String.fromCharCode(ch.toUpperCase().charCodeAt(0) & 0x1f);
-      }
       if (modState.alt) ch = '\x1b' + ch;
       out += ch;
     }
     ws.send(out);
-    modState.ctrl = false; modState.alt = false; modState.shift = false;
-    document.querySelectorAll('.k.mod').forEach(b => b.classList.remove('held'));
+    resetMods();
   } else {
     ws.send(data);
   }
 });
 
-function sendResize() {
-  if (ws.readyState === 1) {
-    ws.send(JSON.stringify({type:'resize', cols:term.cols, rows:term.rows}));
-  }
+/* ========== helper: bind touch/click without stealing focus ========== */
+function bindBtn(el, fn) {
+  el.addEventListener('touchstart', e => e.preventDefault());
+  el.addEventListener('touchend', e => { e.preventDefault(); fn(); });
+  el.addEventListener('mousedown', e => e.preventDefault());
+  el.addEventListener('click', e => { e.preventDefault(); fn(); });
 }
-term.onResize(() => sendResize());
-window.addEventListener('resize', () => { fitAddon.fit(); });
-new ResizeObserver(() => fitAddon.fit()).observe(document.getElementById('terminal'));
 
-// --- Mobile virtual keys ---
+/* ========== compact key bar ========== */
 const keysDiv = document.getElementById('keys');
-const modState = {ctrl:false, alt:false, shift:false};
-
-const keymap = [
+const compactKeys = [
   {label:'Esc',   send:'\x1b'},
   {label:'Tab',   send:'\t'},
-  {label:'Ctrl',  mod:'ctrl', cls:'mod'},
-  {label:'Alt',   mod:'alt',  cls:'mod'},
-  {label:'Shift', mod:'shift', cls:'mod'},
-  {label:'↑',     send:'\x1b[A', shifted:'\x1b[1;2A'},
-  {label:'↓',     send:'\x1b[B', shifted:'\x1b[1;2B'},
-  {label:'←',     send:'\x1b[D', shifted:'\x1b[1;2D'},
-  {label:'→',     send:'\x1b[C', shifted:'\x1b[1;2C'},
-  {label:'Home',  send:'\x1b[H', shifted:'\x1b[1;2H'},
-  {label:'End',   send:'\x1b[F', shifted:'\x1b[1;2F'},
+  {label:'Ctrl',  mod:'ctrl'},
+  {label:'Alt',   mod:'alt'},
+  {label:'Shift', mod:'shift'},
+  {label:'\u2191',send:'\x1b[A', shifted:'\x1b[1;2A'},
+  {label:'\u2193',send:'\x1b[B', shifted:'\x1b[1;2B'},
+  {label:'\u2190',send:'\x1b[D', shifted:'\x1b[1;2D'},
+  {label:'\u2192',send:'\x1b[C', shifted:'\x1b[1;2C'},
+  {label:'Home',  send:'\x1b[H'},
+  {label:'End',   send:'\x1b[F'},
   {label:'Enter', send:'\r'},
   {label:'C-c',   send:'\x03'},
   {label:'C-d',   send:'\x04'},
@@ -136,38 +188,155 @@ const keymap = [
   {label:'C-r',   send:'\x12'},
 ];
 
-function doKey(k) {
-  if (k.mod) {
-    modState[k.mod] = !modState[k.mod];
-    document.querySelectorAll(`.k[data-mod="${k.mod}"]`).forEach(
-      b => b.classList.toggle('held', modState[k.mod])
-    );
-  } else {
-    let data = (modState.shift && k.shifted) ? k.shifted : k.send;
-    if (modState.alt) data = '\x1b' + data;
-    if (modState.ctrl && data.length === 1) {
-      data = String.fromCharCode(data.charCodeAt(0) & 0x1f);
+compactKeys.forEach(k => {
+  const btn = document.createElement('span');
+  btn.className = 'k' + (k.mod ? ' mod' : '');
+  btn.textContent = k.label;
+  if (k.mod) btn.setAttribute('data-mod', k.mod);
+  bindBtn(btn, () => {
+    if (k.mod) { toggleMod(k.mod); }
+    else {
+      let d = (modState.shift && k.shifted) ? k.shifted : k.send;
+      if (modState.alt) d = '\x1b' + d;
+      if (modState.ctrl && d.length === 1)
+        d = String.fromCharCode(d.charCodeAt(0) & 0x1f);
+      if (ws.readyState === 1) ws.send(d);
+      resetMods();
     }
-    if (ws.readyState === 1) ws.send(data);
-    Object.keys(modState).forEach(m => { modState[m] = false; });
-    document.querySelectorAll('.k.mod').forEach(b => b.classList.remove('held'));
-  }
-  term.focus();
+    term.focus();
+  });
+  keysDiv.appendChild(btn);
+});
+
+// toggle button in compact bar
+const togBtn = document.createElement('span');
+togBtn.className = 'k';
+togBtn.textContent = '\u2328';
+togBtn.title = 'Full keyboard';
+bindBtn(togBtn, () => toggleFullKB(true));
+keysDiv.appendChild(togBtn);
+
+/* ========== full virtual keyboard ========== */
+const fullkbDiv = document.getElementById('fullkb');
+let fullkbActive = false;
+let symLayer = false;
+
+const alphaRows = [
+  [{l:'`',s:'~'},{l:'1',s:'!'},{l:'2',s:'@'},{l:'3',s:'#'},{l:'4',s:'$'},{l:'5',s:'%'},{l:'6',s:'^'},{l:'7',s:'&'},{l:'8',s:'*'},{l:'9',s:'('},{l:'0',s:')'},{l:'-',s:'_'},{l:'=',s:'+'}],
+  [{l:'q'},{l:'w'},{l:'e'},{l:'r'},{l:'t'},{l:'y'},{l:'u'},{l:'i'},{l:'o'},{l:'p'},{l:'[',s:'{'},{l:']',s:'}'},{l:'\\',s:'|'}],
+  [{l:'a'},{l:'s'},{l:'d'},{l:'f'},{l:'g'},{l:'h'},{l:'j'},{l:'k'},{l:'l'},{l:';',s:':'},{l:"'",s:'"'}],
+  [{l:'z'},{l:'x'},{l:'c'},{l:'v'},{l:'b'},{l:'n'},{l:'m'},{l:',',s:'<'},{l:'.',s:'>'},{l:'/',s:'?'}],
+];
+
+function buildFullKB() {
+  fullkbDiv.innerHTML = '';
+
+  // row 0: number/symbol row
+  addRow(alphaRows[0]);
+  // row 1: qwerty
+  addRow(alphaRows[1]);
+  // row 2: home row
+  addRow(alphaRows[2]);
+  // row 3: shift + bottom row + backspace
+  addRow(alphaRows[3], {
+    before:[{label:'Shift', mod:'shift', cls:'mod wide'}],
+    after:[{label:'\u232b', send:'\x7f', cls:'wide'}]
+  });
+  // row 4: modifiers + space + special
+  addSpecialRow();
 }
 
-keymap.forEach(k => {
+function addRow(keys, extra) {
+  const row = document.createElement('div');
+  row.className = 'kbrow';
+  if (extra && extra.before) extra.before.forEach(k => row.appendChild(makeFK(k)));
+  keys.forEach(k => {
+    const shifted = modState.shift || symLayer;
+    const label = (shifted && k.s) ? k.s : k.l;
+    const send = label;
+    row.appendChild(makeFK({label, send}));
+  });
+  if (extra && extra.after) extra.after.forEach(k => row.appendChild(makeFK(k)));
+  fullkbDiv.appendChild(row);
+}
+
+function addSpecialRow() {
+  const row = document.createElement('div');
+  row.className = 'kbrow';
+  const specials = [
+    {label:'Esc', send:'\x1b'},
+    {label:'Ctrl', mod:'ctrl', cls:'mod'},
+    {label:'Alt', mod:'alt', cls:'mod'},
+    {label:'Tab', send:'\t'},
+    {label:'', send:' ', cls:'space'},
+    {label:'\u2190', send:'\x1b[D'},
+    {label:'\u2192', send:'\x1b[C'},
+    {label:'\u2191', send:'\x1b[A'},
+    {label:'\u2193', send:'\x1b[B'},
+    {label:'\u21b5', send:'\r'},
+    {label:'\u2328', action:'toggle', cls:'toggle'},
+  ];
+  specials.forEach(k => row.appendChild(makeFK(k)));
+  fullkbDiv.appendChild(row);
+}
+
+function makeFK(k) {
   const btn = document.createElement('span');
-  btn.className = 'k' + (k.cls ? ' ' + k.cls : '');
+  btn.className = 'fk' + (k.cls ? ' ' + k.cls : '');
   btn.textContent = k.label;
   if (k.mod) btn.setAttribute('data-mod', k.mod);
 
-  btn.addEventListener('touchstart', e => { e.preventDefault(); });
-  btn.addEventListener('touchend', e => { e.preventDefault(); doKey(k); });
-  btn.addEventListener('mousedown', e => { e.preventDefault(); });
-  btn.addEventListener('click', e => { e.preventDefault(); doKey(k); });
+  bindBtn(btn, () => {
+    if (k.action === 'toggle') { toggleFullKB(false); return; }
+    if (k.mod) { toggleMod(k.mod); return; }
 
-  keysDiv.appendChild(btn);
-});
+    // shift: for letters, uppercase; for symbols, already resolved in label
+    let data = k.send;
+    if (modState.shift && data.length === 1 && data >= 'a' && data <= 'z')
+      data = data.toUpperCase();
+    if (modState.ctrl && data.length === 1 && data >= ' ' && data <= '~')
+      data = String.fromCharCode(data.toUpperCase().charCodeAt(0) & 0x1f);
+    if (modState.alt) data = '\x1b' + data;
+    if (ws.readyState === 1) ws.send(data);
+
+    // keep shift held (like a real keyboard) until explicit release
+    if (!k.mod) { modState.ctrl = false; modState.alt = false; }
+    document.querySelectorAll('[data-mod="ctrl"],[data-mod="alt"]').forEach(
+      b => b.classList.remove('held'));
+  });
+
+  return btn;
+}
+
+function suppressPhoneKB(yes) {
+  const ta = document.querySelector('.xterm-helper-textarea');
+  if (!ta) return;
+  if (yes) {
+    ta.setAttribute('inputmode', 'none');
+    ta.setAttribute('readonly', '');
+    ta.blur();
+  } else {
+    ta.removeAttribute('inputmode');
+    ta.removeAttribute('readonly');
+    term.focus();
+  }
+}
+
+function toggleFullKB(on) {
+  fullkbActive = on;
+  if (on) {
+    buildFullKB();
+    keysDiv.classList.add('hidden');
+    fullkbDiv.style.display = 'block';
+    suppressPhoneKB(true);
+  } else {
+    fullkbDiv.style.display = 'none';
+    keysDiv.classList.remove('hidden');
+    suppressPhoneKB(false);
+    resetMods();
+  }
+  setTimeout(() => fitAddon.fit(), 50);
+}
 </script>
 </body>
 </html>"""
