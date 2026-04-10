@@ -58,8 +58,9 @@ html,body{height:100%;background:#1e1e1e;overflow:hidden;touch-action:manipulati
 #fullkb .kbrow:last-child{margin-bottom:0}
 #fullkb .fk{
   background:#3c3c3c;color:#ccc;border:1px solid #555;border-radius:4px;
-  padding:6px 0;font-size:14px;font-family:monospace;
+  padding:10px 0;font-size:14px;line-height:1;font-family:monospace;
   cursor:pointer;user-select:none;text-align:center;
+  white-space:nowrap;overflow:hidden;
   -webkit-tap-highlight-color:transparent;
   flex:1;min-width:0;max-width:42px;
 }
