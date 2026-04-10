@@ -70,8 +70,11 @@ html,body{height:100%;background:#1e1e1e;overflow:hidden;touch-action:manipulati
 #fullkb .fk.mod{background:#4a3c2a;border-color:#7a6a4a;color:#e0c080}
 #fullkb .fk.mod.held{background:#d4a017;color:#000;border-color:#d4a017}
 #fullkb .fk.wide{max-width:none;flex:1.6}
-#fullkb .fk.space{max-width:none;flex:5}
+#fullkb .fk.space{max-width:none;flex:3}
 #fullkb .fk.toggle{background:#2a4a3c;border-color:#4a7a6a;color:#80e0c0}
+.arrow,.k.arrow{background:#1e3a4a!important;border-color:#3a6a8a!important;color:#70c8f0!important}
+.del,.k.del{background:#4a2828!important;border-color:#7a4848!important;color:#f08888!important}
+.pink,.k.pink{background:#4a2040!important;border-color:#7a4070!important;color:#f088c0!important}
 
 /* position-based color flash on press */
 @keyframes pos-flash{
@@ -90,14 +93,14 @@ html,body{height:100%;background:#1e1e1e;overflow:hidden;touch-action:manipulati
 @media (orientation:landscape){
   #fullkb .kbrow{max-width:none;justify-content:flex-start}
   #fullkb .fk{max-width:42px;padding:5px 0;font-size:13px}
-  #fullkb .fk.wide{max-width:62px;flex:1.3}
+  #fullkb .fk.wide{max-width:42px;flex:1}
   #fullkb .fk.space{max-width:none}
   #fullkb .split{display:block;flex:1;min-width:32px}
 }
 /* landscape on tablet-sized screens (e.g. iPad) */
 @media (orientation:landscape) and (min-height:600px){
   #fullkb .fk{padding:10px 0;font-size:14px;max-width:56px}
-  #fullkb .fk.wide{max-width:80px}
+  #fullkb .fk.wide{max-width:56px}
 }
 
 .hidden{display:none!important}
@@ -203,29 +206,41 @@ function flash(el) {
   el.classList.add('flash');
 }
 
-function bindBtn(el, fn) {
-  el.addEventListener('touchstart', e => e.preventDefault());
-  el.addEventListener('touchend', e => { e.preventDefault(); flash(el); fn(); });
-  el.addEventListener('mousedown', e => e.preventDefault());
-  el.addEventListener('click', e => { e.preventDefault(); flash(el); fn(); });
+function bindBtn(el, fn, repeat) {
   el.addEventListener('animationend', () => el.classList.remove('flash'));
+  if (repeat) {
+    let timer = null, iv = null;
+    function start() { flash(el); fn(); timer = setTimeout(() => { iv = setInterval(fn, 60); }, 400); }
+    function stop() { clearTimeout(timer); clearInterval(iv); timer = iv = null; }
+    el.addEventListener('touchstart', e => { e.preventDefault(); start(); });
+    el.addEventListener('touchend', e => { e.preventDefault(); stop(); });
+    el.addEventListener('touchcancel', () => stop());
+    el.addEventListener('mousedown', e => { e.preventDefault(); start(); });
+    el.addEventListener('mouseup', () => stop());
+    el.addEventListener('mouseleave', () => stop());
+  } else {
+    el.addEventListener('touchstart', e => e.preventDefault());
+    el.addEventListener('touchend', e => { e.preventDefault(); flash(el); fn(); });
+    el.addEventListener('mousedown', e => e.preventDefault());
+    el.addEventListener('click', e => { e.preventDefault(); flash(el); fn(); });
+  }
 }
 
 /* ========== compact key bar ========== */
 const keysDiv = document.getElementById('keys');
 const compactKeys = [
-  {label:'Esc',   send:'\x1b'},
+  {label:'Esc',   send:'\x1b', cls:'pink'},
   {label:'Tab',   send:'\t'},
   {label:'Ctrl',  mod:'ctrl'},
   {label:'Alt',   mod:'alt'},
   {label:'Shift', mod:'shift'},
-  {label:'\u2191',send:'\x1b[A', shifted:'\x1b[1;2A'},
-  {label:'\u2193',send:'\x1b[B', shifted:'\x1b[1;2B'},
-  {label:'\u2190',send:'\x1b[D', shifted:'\x1b[1;2D'},
-  {label:'\u2192',send:'\x1b[C', shifted:'\x1b[1;2C'},
+  {label:'\u2191',send:'\x1b[A', shifted:'\x1b[1;2A', cls:'arrow'},
+  {label:'\u2193',send:'\x1b[B', shifted:'\x1b[1;2B', cls:'arrow'},
+  {label:'\u2190',send:'\x1b[D', shifted:'\x1b[1;2D', cls:'arrow', repeat:true},
+  {label:'\u2192',send:'\x1b[C', shifted:'\x1b[1;2C', cls:'arrow', repeat:true},
   {label:'Home',  send:'\x1b[H'},
   {label:'End',   send:'\x1b[F'},
-  {label:'Enter', send:'\r'},
+  {label:'Enter', send:'\r', cls:'del'},
   {label:'C-c',   send:'\x03'},
   {label:'C-d',   send:'\x04'},
   {label:'C-z',   send:'\x1a'},
@@ -236,7 +251,7 @@ const compactKeys = [
 
 compactKeys.forEach(k => {
   const btn = document.createElement('span');
-  btn.className = 'k' + (k.mod ? ' mod' : '');
+  btn.className = 'k' + (k.mod ? ' mod' : '') + (k.cls ? ' ' + k.cls : '');
   btn.textContent = k.label;
   if (k.mod) btn.setAttribute('data-mod', k.mod);
   bindBtn(btn, () => {
@@ -250,7 +265,7 @@ compactKeys.forEach(k => {
       resetMods();
     }
     term.focus();
-  });
+  }, k.repeat);
   keysDiv.appendChild(btn);
 });
 
@@ -281,34 +296,55 @@ compactBtns.forEach((btn, i) => {
 const fullkbDiv = document.getElementById('fullkb');
 let fullkbActive = false;
 let symLayer = false;
+let capsLock = false;
 
-const alphaRows = [
-  [{l:'`',s:'~'},{l:'1',s:'!'},{l:'2',s:'@'},{l:'3',s:'#'},{l:'4',s:'$'},{l:'5',s:'%'},{l:'6',s:'^'},{l:'7',s:'&'},{l:'8',s:'*'},{l:'9',s:'('},{l:'0',s:')'},{l:'-',s:'_'},{l:'=',s:'+'}],
-  [{l:'q'},{l:'w'},{l:'e'},{l:'r'},{l:'t'},{l:'y'},{l:'u'},{l:'i'},{l:'o'},{l:'p'},{l:'[',s:'{'},{l:']',s:'}'},{l:'\\',s:'|'}],
-  [{l:'a'},{l:'s'},{l:'d'},{l:'f'},{l:'g'},{l:'h'},{l:'j'},{l:'k'},{l:'l'},{l:';',s:':'},{l:"'",s:'"'}],
-  [{l:'z'},{l:'x'},{l:'c'},{l:'v'},{l:'b'},{l:'n'},{l:'m'},{l:',',s:'<'},{l:'.',s:'>'},{l:'/',s:'?'}],
+const mainRows = [
+  ['1','2','3','4','5','6','7','8','9','0'],
+  ['q','w','e','r','t','y','u','i','o','p'],
+  ['a','s','d','f','g','h','j','k','l'],
+  ['z','x','c','v','b','n','m'],
+];
+const symRows = [
+  ['!','@','#','$','%','^','&','*','(',')'],
+  ['`','~','-','_','=','+','[',']','{','}'],
+  ['\\','|',';',':',"\'",'\"',],
+  ['/','?','<'],
 ];
 
 function buildFullKB() {
   fullkbDiv.innerHTML = '';
+  const rows = symLayer ? symRows : mainRows;
+  const capsActive = capsLock && !symLayer;
 
-  // row 0: esc + number/symbol row + backspace
-  addRow(alphaRows[0], {
-    before:[{label:'Esc', send:'\x1b'}],
-    after:[{label:'\u232b', send:'\x7f', cls:'wide'}]
+  // row 0: Esc + numbers/symbols + ⌫
+  addRow(rows[0].map(c => ({label: capsActive && c >= 'a' && c <= 'z' ? c.toUpperCase() : c,
+    send: capsActive && c >= 'a' && c <= 'z' ? c.toUpperCase() : c})), {
+    before:[{label:'Esc', send:'\x1b', cls:'pink'}],
+    after:[{label:'\u232b', send:'\x7f', cls:'wide del', repeat:true}]
   });
-  // row 1: qwerty
-  addRow(alphaRows[1]);
-  // row 2: home row + enter
-  addRow(alphaRows[2], {
-    after:[{label:'\u21b5', send:'\r', cls:'wide'}]
+  // row 1: Tab + letters/symbols + Sym/Main
+  addRow(rows[1].map(c => ({label: capsActive && c >= 'a' && c <= 'z' ? c.toUpperCase() : c,
+    send: capsActive && c >= 'a' && c <= 'z' ? c.toUpperCase() : c})), {
+    before:[{label:'Tab', send:'\t'}],
+    after:[{label: symLayer ? 'Main' : 'Sym', action:'sym', cls:'toggle'}]
   });
-  // row 3: shift + bottom row
-  addRow(alphaRows[3], {
-    before:[{label:'Shift', mod:'shift', cls:'mod wide'}],
+  // row 2: Caps + letters/symbols + ↵
+  addRow(rows[2].map(c => ({label: capsActive && c >= 'a' && c <= 'z' ? c.toUpperCase() : c,
+    send: capsActive && c >= 'a' && c <= 'z' ? c.toUpperCase() : c})), {
+    before:[{label:'Caps', action:'caps', cls: capsLock ? 'mod held' : 'mod'}],
+    after:[{label:'\u21b5', send:'\r', cls:'wide del'}],
   });
-  // row 4: modifiers + space + special
-  addSpecialRow();
+  // row 3: Shift + letters/symbols + ↑ , .
+  const row3after = symLayer
+    ? [{label:'Del', send:'\x1b[3~', cls:'pink'},{label:'>', send:'>'},{label:'\u2191', send:'\x1b[A', cls:'arrow'},{label:',', send:','},{label:'.', send:'.'}]
+    : [{label:'\u2191', send:'\x1b[A', cls:'arrow'},{label:',', send:','},{label:'.', send:'.'}];
+  addRow(rows[3].map(c => ({label: capsActive && c >= 'a' && c <= 'z' ? c.toUpperCase() : c,
+    send: capsActive && c >= 'a' && c <= 'z' ? c.toUpperCase() : c})), {
+    before:[{label:'Shift', mod:'shift', cls:'mod'}],
+    after: row3after,
+  });
+  // row 4: ▼ Ctrl Alt [space] ← ↓ → ⌨
+  addBottomRow();
   assignHues(fullkbDiv);
 }
 
@@ -316,7 +352,7 @@ function assignHues(container) {
   const rows = container.querySelectorAll('.kbrow');
   const totalRows = rows.length;
   rows.forEach((row, ri) => {
-    const keys = row.querySelectorAll('.fk,.k');
+    const keys = row.querySelectorAll('.fk');
     const totalCols = keys.length;
     keys.forEach((key, ci) => {
       const ry = totalRows > 1 ? ri / (totalRows - 1) : 0;
@@ -338,12 +374,7 @@ function addRow(keys, extra) {
   row.className = 'kbrow';
   const allItems = [];
   if (extra && extra.before) extra.before.forEach(k => allItems.push(makeFK(k)));
-  keys.forEach(k => {
-    const shifted = modState.shift || symLayer;
-    const label = (shifted && k.s) ? k.s : k.l;
-    const send = label;
-    allItems.push(makeFK({label, send}));
-  });
+  keys.forEach(k => allItems.push(makeFK(k)));
   if (extra && extra.after) extra.after.forEach(k => allItems.push(makeFK(k)));
   const mid = Math.ceil(allItems.length / 2);
   allItems.forEach((el, i) => {
@@ -353,25 +384,22 @@ function addRow(keys, extra) {
   fullkbDiv.appendChild(row);
 }
 
-function addSpecialRow() {
+function addBottomRow() {
   const row = document.createElement('div');
   row.className = 'kbrow';
   const left = [
     {label:'\u25bc', action:'hide', cls:'toggle'},
     {label:'Ctrl', mod:'ctrl', cls:'mod'},
     {label:'Alt', mod:'alt', cls:'mod'},
-    {label:'Tab', send:'\t'},
   ];
   const right = [
-    {label:'\u2190', send:'\x1b[D'},
-    {label:'\u2192', send:'\x1b[C'},
-    {label:'\u2191', send:'\x1b[A'},
-    {label:'\u2193', send:'\x1b[B'},
+    {label:'\u2190', send:'\x1b[D', cls:'arrow', repeat:true},
+    {label:'\u2193', send:'\x1b[B', cls:'arrow'},
+    {label:'\u2192', send:'\x1b[C', cls:'arrow', repeat:true},
     {label:'\u2328', action:'toggle', cls:'toggle'},
   ];
   left.forEach(k => row.appendChild(makeFK(k)));
   row.appendChild(makeFK({label:'', send:' ', cls:'space'}));
-  row.appendChild(makeSplit());
   right.forEach(k => row.appendChild(makeFK(k)));
   fullkbDiv.appendChild(row);
 }
@@ -385,10 +413,12 @@ function makeFK(k) {
   bindBtn(btn, () => {
     if (k.action === 'toggle') { toggleFullKB(false); return; }
     if (k.action === 'hide') { hideFullKB(); return; }
+    if (k.action === 'sym') { symLayer = !symLayer; buildFullKB(); return; }
+    if (k.action === 'caps') { capsLock = !capsLock; buildFullKB(); return; }
     if (k.mod) { toggleMod(k.mod); return; }
 
-    // shift: for letters, uppercase; for symbols, already resolved in label
     let data = k.send;
+    // Shift as one-shot modifier: uppercase letters, or send shifted arrow etc.
     if (modState.shift && data.length === 1 && data >= 'a' && data <= 'z')
       data = data.toUpperCase();
     if (modState.ctrl && data.length === 1 && data >= ' ' && data <= '~')
@@ -396,11 +426,9 @@ function makeFK(k) {
     if (modState.alt) data = '\x1b' + data;
     if (ws.readyState === 1) ws.send(data);
 
-    // keep shift held (like a real keyboard) until explicit release
-    if (!k.mod) { modState.ctrl = false; modState.alt = false; }
-    document.querySelectorAll('[data-mod="ctrl"],[data-mod="alt"]').forEach(
-      b => b.classList.remove('held'));
-  });
+    // all modifiers are one-shot: reset after use
+    resetMods();
+  }, k.repeat);
 
   return btn;
 }
