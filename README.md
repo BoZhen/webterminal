@@ -1,23 +1,30 @@
 # webterminal
 
-Lightweight web-based terminal with a mobile-friendly virtual key bar. Single Python file, no build step.
+Lightweight web-based terminal with a mobile-friendly virtual keyboard. Single Python file, no build step. Powered by tmux for persistent sessions that survive browser disconnects.
 
 ## Features
 
-- Full terminal via xterm.js + WebSocket
-- Compact key bar for touch screens: Esc, Tab, Ctrl, Alt, Shift, arrow keys, Home/End, Enter, and common Ctrl combos (C-c, C-d, C-z, C-l, C-a, C-r)
-- Full virtual QWERTY keyboard mode (toggle via ⌨ button): complete letter, number, and symbol input without the phone soft keyboard
-- Modifier keys (Ctrl/Alt/Shift) are toggle-style: tap to activate, then tap another key or type on the soft keyboard to send the combo
-- Split keyboard in landscape: keys split into left/right halves for ergonomic thumb typing, with a hide/show toggle for browsing terminal output
+- Full terminal via xterm.js + WebSocket, backed by tmux
+- **Persistent sessions**: named sessions survive browser close and can be reattached; anonymous sessions are cleaned up automatically
+- **URL parameter API**: `?name=`, `?cwd=`, `?cmd=`, `?attach=` for session control
+- **REST API**: list sessions, send keys, and kill sessions programmatically
+- Compact key bar for touch screens: Esc, Tab, Ctrl, Alt, Shift, arrow keys, Home/End, Enter, Scr (tmux scroll mode), and common Ctrl combos
+- Full virtual QWERTY keyboard with symbol layer: complete letter, number, and symbol input without the phone soft keyboard
+- Symbol layer adds tmux scroll (Scr), Del, Page Up/Down keys for terminal navigation
+- Modifier keys (Ctrl/Alt/Shift) are toggle-style: tap to activate, then tap another key to send the combo
+- Split keyboard in landscape: keys split into left/right halves for ergonomic thumb typing, with a hide/show toggle
 - Orientation-aware key sizing: larger touch targets in portrait, compact layout in landscape
-- Position-based rainbow flash feedback: each key lights up in a color based on its position (red at top-left to purple at bottom-right)
+- Position-based rainbow flash feedback on key press
+- 10,000-line scrollback buffer
 - Auto-fit terminal to viewport, responsive on resize
 - Clickable URLs (web-links addon)
+- HTTP Basic Auth support
 
 ## Requirements
 
 - Python 3.10+
 - [Tornado](https://www.tornadoweb.org/)
+- tmux
 
 ```bash
 pip install tornado
@@ -29,13 +36,30 @@ pip install tornado
 python server.py
 ```
 
-Open `http://<host>:7683` in a browser.
+Open `http://<host>:7700` in a browser.
+
+### URL parameters
+
+| Parameter | Description |
+|---|---|
+| `?name=mywork` | Create or reattach a named session |
+| `?cwd=/path/to/dir` | Set initial working directory |
+| `?cmd=htop` | Run a command on session start |
+| `?attach=existing` | Attach to an existing tmux session |
+
+### REST API
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/terminals` | List all tmux sessions |
+| `POST` | `/api/terminals/:name/send` | Send keys to a session (body: `{"keys": "..."}`) |
+| `DELETE` | `/api/terminals/:name` | Kill a session |
 
 ### Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `WEBTERMINAL_PORT` | `7683` | Listen port |
+| `WEBTERMINAL_PORT` | `7700` | Listen port |
 | `SHELL` | System login shell, fallback `/usr/bin/bash` | Shell to spawn |
 | `WEBTERMINAL_AUTH` | *(empty, disabled)* | HTTP Basic Auth in `user:pass` format |
 
@@ -52,9 +76,9 @@ Note: `SHELL` reads from the system environment variable, which is your **login 
 
 Designed for accessing a remote machine's terminal from a mobile device (or any device with a browser).
 
-The bottom bar provides modifier and special keys that phone soft keyboards lack. Modifier keys are sticky: tap Ctrl, then type `c` on the soft keyboard to send Ctrl-C.
+The bottom bar provides modifier and special keys that phone soft keyboards lack. Modifier keys are sticky: tap Ctrl, then type `c` on the soft keyboard to send Ctrl-C. The Scr key enters tmux scroll mode for browsing history.
 
-Tap the ⌨ button to switch to a full virtual keyboard that suppresses the phone soft keyboard entirely. In landscape orientation the keyboard automatically splits into left/right halves for comfortable thumb typing. Tap ▼ to hide the keyboard for browsing terminal output; a floating ⌨ button appears at the bottom-left to restore it.
+Tap the ⌨ button to switch to a full virtual keyboard that suppresses the phone soft keyboard entirely. Switch to the symbol layer (Sym) for additional keys including tmux scroll, Del, and Page Up/Down. In landscape orientation the keyboard automatically splits into left/right halves for comfortable thumb typing. Tap ▼ to hide the keyboard for browsing terminal output; a floating ⌨ button appears at the bottom-left to restore it.
 
 ## License
 
