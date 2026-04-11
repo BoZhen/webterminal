@@ -3,21 +3,34 @@
 
 import base64
 import fcntl
+import json
 import os
 import pty
+import re
 import secrets
-import select
 import signal
 import struct
+import subprocess
 import termios
+import uuid
 
 import tornado.ioloop
 import tornado.web
 import tornado.websocket
 
 SHELL = os.environ.get("SHELL", "/usr/bin/bash")
-PORT = int(os.environ.get("WEBTERMINAL_PORT", "7683"))
+PORT = int(os.environ.get("WEBTERMINAL_PORT", "7700"))
 AUTH = os.environ.get("WEBTERMINAL_AUTH", "")  # user:pass
+TMUX = "/usr/bin/tmux"
+
+
+def _valid_session_name(name: str) -> bool:
+    """Restrict tmux session names to safe characters."""
+    return bool(re.match(r'^[a-zA-Z0-9_-]{1,64}$', name))
+
+
+def _auto_session_name() -> str:
+    return "auto-" + uuid.uuid4().hex[:8]
 
 HTML = r"""<!DOCTYPE html>
 <html>
@@ -135,7 +148,13 @@ term.open(document.getElementById('terminal'));
 fitAddon.fit();
 
 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-const ws = new WebSocket(`${proto}//${location.host}/ws`);
+const params = new URLSearchParams(location.search);
+const wsParams = new URLSearchParams();
+['name','cwd','cmd','attach'].forEach(k => {
+  if (params.has(k)) wsParams.set(k, params.get(k));
+});
+const wsQuery = wsParams.toString();
+const ws = new WebSocket(`${proto}//${location.host}/ws${wsQuery ? '?' + wsQuery : ''}`);
 ws.binaryType = 'arraybuffer';
 
 ws.onopen = () => { sendResize(); term.focus(); };
@@ -143,7 +162,11 @@ ws.onmessage = e => {
   if (e.data instanceof ArrayBuffer) term.write(new Uint8Array(e.data));
   else term.write(e.data);
 };
-ws.onclose = () => term.write('\r\n\x1b[31m[连接已断开]\x1b[0m\r\n');
+ws.onclose = () => {
+  term.write('\r\n\x1b[31m[连接已断开]\x1b[0m\r\n');
+  if (params.get('name') || params.get('attach'))
+    term.write('\x1b[33m[刷新页面以重新连接]\x1b[0m\r\n');
+};
 
 function sendResize() {
   if (ws.readyState === 1)
@@ -524,6 +547,8 @@ class TermWebSocket(BasicAuthMixin, tornado.websocket.WebSocketHandler):
     def open(self):
         self.fd = None
         self.child_pid = None
+        self.session_name = None
+        self.is_anonymous = False
         if AUTH:
             header = self.request.headers.get("Authorization", "")
             ok = False
@@ -536,30 +561,77 @@ class TermWebSocket(BasicAuthMixin, tornado.websocket.WebSocketHandler):
             if not ok:
                 self.close(4401, "Unauthorized")
                 return
-        pid, fd = pty.openpty()
-        # pid from pty.fork pattern: use fork
+
+        # Parse URL parameters
+        attach = self.get_argument("attach", None)
+        name = self.get_argument("name", None)
+        cwd = self.get_argument("cwd", None)
+        cmd = self.get_argument("cmd", None)
+
+        # Determine tmux command
+        if attach:
+            if not _valid_session_name(attach):
+                self.close(4400, "Invalid session name")
+                return
+            rc = subprocess.call([TMUX, "has-session", "-t", attach],
+                                 stderr=subprocess.DEVNULL)
+            if rc != 0:
+                self.close(4404, "Session not found")
+                return
+            self.session_name = attach
+            tmux_cmd = [TMUX, "attach-session", "-t", attach]
+        elif name:
+            if not _valid_session_name(name):
+                self.close(4400, "Invalid session name")
+                return
+            self.session_name = name
+            tmux_cmd = [TMUX, "new-session", "-A", "-s", name]
+        else:
+            self.session_name = _auto_session_name()
+            self.is_anonymous = True
+            tmux_cmd = [TMUX, "new-session", "-s", self.session_name]
+
+        # Spawn PTY with tmux
+        master_fd, slave_fd = pty.openpty()
         child_pid = os.fork()
         if child_pid == 0:
             # child
-            os.close(pid)
+            os.close(master_fd)
             os.setsid()
-            fcntl.ioctl(fd, termios.TIOCSCTTY, 0)
-            os.dup2(fd, 0)
-            os.dup2(fd, 1)
-            os.dup2(fd, 2)
-            if fd > 2:
-                os.close(fd)
+            fcntl.ioctl(slave_fd, termios.TIOCSCTTY, 0)
+            os.dup2(slave_fd, 0)
+            os.dup2(slave_fd, 1)
+            os.dup2(slave_fd, 2)
+            if slave_fd > 2:
+                os.close(slave_fd)
             env = os.environ.copy()
             env["TERM"] = "xterm-256color"
-            os.execvpe(SHELL, [SHELL, "-l"], env)
+            os.execvpe(tmux_cmd[0], tmux_cmd, env)
         else:
             # parent
-            os.close(fd)
-            self.fd = pid
+            os.close(slave_fd)
+            self.fd = master_fd
             self.child_pid = child_pid
             tornado.ioloop.IOLoop.current().add_handler(
                 self.fd, self._read_pty, tornado.ioloop.IOLoop.READ
             )
+            # Send initial cwd/cmd after tmux initializes
+            if not attach and (cwd or cmd):
+                loop = tornado.ioloop.IOLoop.current()
+                if cwd:
+                    loop.call_later(0.3, self._send_initial_keys,
+                                    f"cd {cwd}")
+                if cmd:
+                    delay = 0.5 if cwd else 0.3
+                    loop.call_later(delay, self._send_initial_keys, cmd)
+
+    def _send_initial_keys(self, text):
+        """Send a command string to the tmux session via the PTY."""
+        if self.fd:
+            try:
+                os.write(self.fd, (text + "\n").encode())
+            except OSError:
+                pass
 
     def _read_pty(self, fd, events):
         try:
@@ -574,7 +646,6 @@ class TermWebSocket(BasicAuthMixin, tornado.websocket.WebSocketHandler):
     def on_message(self, message):
         if isinstance(message, str) and message.startswith("{"):
             try:
-                import json
                 msg = json.loads(message)
                 if msg.get("type") == "resize":
                     cols, rows = msg["cols"], msg["rows"]
@@ -600,23 +671,110 @@ class TermWebSocket(BasicAuthMixin, tornado.websocket.WebSocketHandler):
                 pass
         if self.child_pid:
             try:
-                os.kill(self.child_pid, signal.SIGTERM)
                 os.waitpid(self.child_pid, os.WNOHANG)
             except OSError:
+                pass
+        # Clean up anonymous sessions (no one will reattach)
+        if self.is_anonymous and self.session_name:
+            try:
+                subprocess.call([TMUX, "kill-session", "-t", self.session_name],
+                                stderr=subprocess.DEVNULL)
+            except Exception:
                 pass
 
     def check_origin(self, origin):
         return True
 
 
+class ListTerminalsHandler(BasicAuthMixin, tornado.web.RequestHandler):
+    def get(self):
+        if not self._check_auth():
+            return
+        result = subprocess.run(
+            [TMUX, "list-sessions", "-F",
+             "#{session_name}|#{session_created}|#{session_windows}|#{session_attached}"],
+            capture_output=True, text=True,
+        )
+        sessions = []
+        for line in result.stdout.strip().splitlines():
+            if not line:
+                continue
+            parts = line.split("|")
+            if len(parts) >= 4:
+                sessions.append({
+                    "name": parts[0],
+                    "created": int(parts[1]),
+                    "windows": int(parts[2]),
+                    "attached": int(parts[3]),
+                })
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({"sessions": sessions}))
+
+
+class SendKeysHandler(BasicAuthMixin, tornado.web.RequestHandler):
+    def post(self, name):
+        if not self._check_auth():
+            return
+        if not _valid_session_name(name):
+            self.set_status(400)
+            self.write(json.dumps({"error": "Invalid session name"}))
+            return
+        rc = subprocess.call([TMUX, "has-session", "-t", name],
+                             stderr=subprocess.DEVNULL)
+        if rc != 0:
+            self.set_status(404)
+            self.write(json.dumps({"error": "Session not found"}))
+            return
+        try:
+            body = json.loads(self.request.body)
+            keys = body["keys"]
+        except (json.JSONDecodeError, KeyError):
+            self.set_status(400)
+            self.write(json.dumps({"error": "Body must contain 'keys'"}))
+            return
+        parts = keys.split("\n")
+        for i, part in enumerate(parts):
+            if part:
+                subprocess.call([TMUX, "send-keys", "-t", name, "-l", part],
+                                stderr=subprocess.DEVNULL)
+            if i < len(parts) - 1:
+                subprocess.call([TMUX, "send-keys", "-t", name, "Enter"],
+                                stderr=subprocess.DEVNULL)
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({"ok": True}))
+
+
+class KillTerminalHandler(BasicAuthMixin, tornado.web.RequestHandler):
+    def delete(self, name):
+        if not self._check_auth():
+            return
+        if not _valid_session_name(name):
+            self.set_status(400)
+            self.write(json.dumps({"error": "Invalid session name"}))
+            return
+        rc = subprocess.call([TMUX, "has-session", "-t", name],
+                             stderr=subprocess.DEVNULL)
+        if rc != 0:
+            self.set_status(404)
+            self.write(json.dumps({"error": "Session not found"}))
+            return
+        subprocess.call([TMUX, "kill-session", "-t", name],
+                        stderr=subprocess.DEVNULL)
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({"ok": True}))
+
+
 def main():
     app = tornado.web.Application([
         (r"/", IndexHandler),
         (r"/ws", TermWebSocket),
+        (r"/api/terminals", ListTerminalsHandler),
+        (r"/api/terminals/([^/]+)/send", SendKeysHandler),
+        (r"/api/terminals/([^/]+)", KillTerminalHandler),
     ])
     app.listen(PORT, address="0.0.0.0")
     print(f"Web terminal running at http://0.0.0.0:{PORT}")
-    print(f"Shell: {SHELL}")
+    print(f"Shell: {SHELL} (via tmux)")
     print(f"Auth: {'enabled' if AUTH else 'disabled'}")
     tornado.ioloop.IOLoop.current().start()
 
