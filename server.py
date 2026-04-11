@@ -150,8 +150,9 @@ function sendResize() {
     ws.send(JSON.stringify({type:'resize', cols:term.cols, rows:term.rows}));
 }
 term.onResize(() => sendResize());
-window.addEventListener('resize', () => fitAddon.fit());
-new ResizeObserver(() => fitAddon.fit()).observe(document.getElementById('terminal'));
+let kbSwitching = false;
+window.addEventListener('resize', () => { fitAddon.fit(); if (kbSwitching) term.scrollToBottom(); });
+new ResizeObserver(() => { fitAddon.fit(); if (kbSwitching) term.scrollToBottom(); }).observe(document.getElementById('terminal'));
 
 /* ========== shared modifier state ========== */
 const modState = {ctrl:false, alt:false, shift:false};
@@ -448,6 +449,12 @@ function suppressPhoneKB(yes) {
   }
 }
 
+function fitAndScroll() {
+  kbSwitching = true;
+  fitAddon.fit(); term.scrollToBottom();
+  setTimeout(() => { fitAddon.fit(); term.scrollToBottom(); kbSwitching = false; }, 500);
+}
+
 function toggleFullKB(on) {
   fullkbActive = on;
   const showBtn = document.getElementById('showkb');
@@ -464,14 +471,14 @@ function toggleFullKB(on) {
     suppressPhoneKB(false);
     resetMods();
   }
-  setTimeout(() => fitAddon.fit(), 50);
+  fitAndScroll();
 }
 
 function hideFullKB() {
   fullkbDiv.style.display = 'none';
   const showBtn = document.getElementById('showkb');
   showBtn.style.display = 'block';
-  setTimeout(() => fitAddon.fit(), 50);
+  fitAndScroll();
 }
 
 // floating show-keyboard button
@@ -479,7 +486,7 @@ const showKbBtn = document.getElementById('showkb');
 bindBtn(showKbBtn, () => {
   showKbBtn.style.display = 'none';
   fullkbDiv.style.display = 'block';
-  setTimeout(() => fitAddon.fit(), 50);
+  fitAndScroll();
 });
 </script>
 </body>
