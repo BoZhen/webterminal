@@ -155,6 +155,31 @@ try {
 } catch(e) { console.warn('WebGL addon failed, using canvas fallback'); }
 fitAddon.fit();
 
+/* Touch-drag → synthesize WheelEvent so tmux mouse mode scrolls on mobile. */
+(function() {
+  const el = term.element;
+  const target = el.querySelector('.xterm-screen') || el;
+  const STEP = 24;
+  let lastY = 0, active = false;
+  el.addEventListener('touchstart', e => {
+    active = e.touches.length === 1;
+    if (active) lastY = e.touches[0].clientY;
+  }, {passive: true});
+  el.addEventListener('touchmove', e => {
+    if (!active || e.touches.length !== 1) return;
+    const y = e.touches[0].clientY;
+    const dy = lastY - y;
+    if (Math.abs(dy) < STEP) return;
+    lastY = y;
+    target.dispatchEvent(new WheelEvent('wheel', {
+      deltaY: dy, deltaMode: 0,
+      clientX: e.touches[0].clientX, clientY: y,
+      bubbles: true, cancelable: true,
+    }));
+    e.preventDefault();
+  }, {passive: false});
+})();
+
 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
 const params = new URLSearchParams(location.search);
 const sessionLabel = params.get('attach') || params.get('name');
