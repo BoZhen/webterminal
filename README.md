@@ -16,6 +16,7 @@ Lightweight web-based terminal with a mobile-friendly virtual keyboard. Single P
 - Orientation-aware key sizing: larger touch targets in portrait, compact layout in landscape
 - Position-based rainbow flash feedback on key press
 - 10,000-line scrollback buffer
+- GPU-accelerated rendering via WebGL addon (automatic canvas fallback)
 - Auto-fit terminal to viewport, responsive on resize
 - Clickable URLs (web-links addon)
 - HTTP Basic Auth support

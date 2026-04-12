@@ -135,6 +135,7 @@ html,body{height:100%;background:#1e1e1e;overflow:hidden;touch-action:manipulati
 <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-webgl@0.18.0/lib/addon-webgl.min.js"></script>
 <script>
 const term = new Terminal({
   fontSize: 14, fontFamily: 'Menlo, Monaco, "Courier New", monospace',
@@ -147,6 +148,11 @@ const fitAddon = new FitAddon.FitAddon();
 term.loadAddon(fitAddon);
 term.loadAddon(new WebLinksAddon.WebLinksAddon());
 term.open(document.getElementById('terminal'));
+try {
+  const webglAddon = new WebglAddon.WebglAddon();
+  webglAddon.onContextLoss(() => webglAddon.dispose());
+  term.loadAddon(webglAddon);
+} catch(e) { console.warn('WebGL addon failed, using canvas fallback'); }
 fitAddon.fit();
 
 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -176,8 +182,15 @@ function sendResize() {
 }
 term.onResize(() => sendResize());
 let kbSwitching = false;
-window.addEventListener('resize', () => { fitAddon.fit(); if (kbSwitching) term.scrollToBottom(); });
-new ResizeObserver(() => { fitAddon.fit(); if (kbSwitching) term.scrollToBottom(); }).observe(document.getElementById('terminal'));
+let fitTimer = 0;
+function debouncedFit() {
+  clearTimeout(fitTimer);
+  fitTimer = setTimeout(() => {
+    fitAddon.fit();
+    if (kbSwitching) term.scrollToBottom();
+  }, 50);
+}
+new ResizeObserver(() => debouncedFit()).observe(document.getElementById('terminal'));
 
 /* ========== shared modifier state ========== */
 const modState = {ctrl:false, alt:false, shift:false};
@@ -482,8 +495,10 @@ function suppressPhoneKB(yes) {
 
 function fitAndScroll() {
   kbSwitching = true;
-  fitAddon.fit(); term.scrollToBottom();
-  setTimeout(() => { fitAddon.fit(); term.scrollToBottom(); kbSwitching = false; }, 500);
+  requestAnimationFrame(() => {
+    fitAddon.fit(); term.scrollToBottom();
+    setTimeout(() => { kbSwitching = false; }, 500);
+  });
 }
 
 function toggleFullKB(on) {
