@@ -6,7 +6,7 @@ Lightweight web-based terminal with a mobile-friendly virtual keyboard. Single P
 
 - Full terminal via xterm.js + WebSocket, backed by tmux
 - **Persistent sessions**: named sessions survive browser close and can be reattached; anonymous sessions are cleaned up automatically
-- **URL parameter API**: `?name=`, `?cwd=`, `?cmd=`, `?attach=` for session control
+- **URL parameter API**: `?name=`, `?cwd=`, `?cmd=`, `?attach=` for session control; browser tab title auto-reflects the session name
 - **REST API**: list sessions, send keys, and kill sessions programmatically
 - Compact key bar for touch screens: Esc, Tab, Ctrl, Alt, Shift, arrow keys, Home/End, Enter, Scr (tmux scroll mode), and common Ctrl combos
 - Full virtual QWERTY keyboard with symbol layer: complete letter, number, and symbol input without the phone soft keyboard

@@ -157,6 +157,8 @@ fitAddon.fit();
 
 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
 const params = new URLSearchParams(location.search);
+const sessionLabel = params.get('attach') || params.get('name');
+if (sessionLabel) document.title = sessionLabel;
 const wsParams = new URLSearchParams();
 ['name','cwd','cmd','attach'].forEach(k => {
   if (params.has(k)) wsParams.set(k, params.get(k));
