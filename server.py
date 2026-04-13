@@ -36,7 +36,7 @@ HTML = r"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,interactive-widget=resizes-content">
 <title>Terminal</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
 <style>
@@ -220,14 +220,49 @@ function debouncedFit() {
 new ResizeObserver(() => debouncedFit()).observe(document.getElementById('terminal'));
 
 /* Shrink body to visualViewport so soft keyboard never covers the terminal.
-   Without this, iPad keeps layout viewport at full height and the cursor hides
-   behind the native keyboard. ResizeObserver above re-fits xterm automatically. */
+   Works on Chrome (interactive-widget=resizes-content shrinks layout viewport)
+   and on iPhone/newer iPad where WebKit shrinks visualViewport on keyboard. */
 if (window.visualViewport) {
   const vv = window.visualViewport;
   const syncVV = () => { document.body.style.height = vv.height + 'px'; };
   vv.addEventListener('resize', syncVV);
   vv.addEventListener('scroll', syncVV);
   syncVV();
+}
+
+/* Fallback for older iPadOS WebKit where visualViewport stays full-height when
+   the soft keyboard appears. Detects dynamically: if vv.height doesn't change
+   within 450ms of focus, shrink body by an estimated keyboard height. Gated on
+   a coarse pointer so desktop Chrome (which also sees no vv change on focus)
+   doesn't mistakenly shrink. */
+const hasCoarsePointer = window.matchMedia &&
+  window.matchMedia('(pointer: coarse)').matches;
+if (hasCoarsePointer && window.visualViewport && term.textarea) {
+  const ta = term.textarea;
+  const vv = window.visualViewport;
+  let fallbackActive = false;
+  const estimateVisibleH = () => {
+    const vh = window.innerHeight;
+    const portrait = vh > window.innerWidth;
+    return Math.round(vh * (portrait ? 0.58 : 0.48));
+  };
+  ta.addEventListener('focus', () => {
+    if (ta.readOnly || ta.getAttribute('inputmode') === 'none') return;
+    const initialH = vv.height;
+    setTimeout(() => {
+      if (document.activeElement !== ta) return;
+      if (Math.abs(vv.height - initialH) < 50) {
+        fallbackActive = true;
+        document.body.style.height = estimateVisibleH() + 'px';
+      }
+    }, 450);
+  });
+  ta.addEventListener('blur', () => {
+    if (fallbackActive) {
+      fallbackActive = false;
+      document.body.style.height = vv.height + 'px';
+    }
+  });
 }
 
 /* ========== shared modifier state ========== */
