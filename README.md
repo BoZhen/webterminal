@@ -17,6 +17,7 @@ Lightweight web-based terminal with a mobile-friendly virtual keyboard. Single P
 - Position-based rainbow flash feedback on key press
 - 10,000-line scrollback buffer
 - Touch-drag scrolling on mobile: one-finger drag on the terminal sends wheel events to tmux, matching desktop mouse-wheel behavior
+- Soft-keyboard-aware layout: on tablets/phones the terminal shrinks above the native keyboard via VisualViewport API, so the cursor stays visible instead of hiding behind the keyboard
 - GPU-accelerated rendering via WebGL addon (automatic canvas fallback)
 - Auto-fit terminal to viewport, responsive on resize
 - Clickable URLs (web-links addon)

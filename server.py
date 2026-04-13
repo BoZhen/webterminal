@@ -219,6 +219,17 @@ function debouncedFit() {
 }
 new ResizeObserver(() => debouncedFit()).observe(document.getElementById('terminal'));
 
+/* Shrink body to visualViewport so soft keyboard never covers the terminal.
+   Without this, iPad keeps layout viewport at full height and the cursor hides
+   behind the native keyboard. ResizeObserver above re-fits xterm automatically. */
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const syncVV = () => { document.body.style.height = vv.height + 'px'; };
+  vv.addEventListener('resize', syncVV);
+  vv.addEventListener('scroll', syncVV);
+  syncVV();
+}
+
 /* ========== shared modifier state ========== */
 const modState = {ctrl:false, alt:false, shift:false};
 
