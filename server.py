@@ -344,7 +344,6 @@ const compactKeys = [
   {label:'Esc',   send:'\x1b', cls:'pink'},
   {label:'Tab',   send:'\t'},
   {label:'Ctrl',  mod:'ctrl'},
-  {label:'Alt',   mod:'alt'},
   {label:'Shift', mod:'shift'},
   {label:'\u2191',send:'\x1b[A', shifted:'\x1b[1;2A', cls:'arrow'},
   {label:'\u2193',send:'\x1b[B', shifted:'\x1b[1;2B', cls:'arrow'},
@@ -355,11 +354,7 @@ const compactKeys = [
   {label:'Enter', send:'\r', cls:'del'},
   {label:'C-c',   send:'\x03'},
   {label:'C-d',   send:'\x04'},
-  {label:'C-z',   send:'\x1a'},
   {label:'C-l',   send:'\x0c'},
-  {label:'C-a',   send:'\x01'},
-  {label:'C-r',   send:'\x12'},
-  {label:'Scr',   send:'\x02[', cls:'pink'},
 ];
 
 compactKeys.forEach(k => {
@@ -449,13 +444,13 @@ function buildFullKB() {
   });
   // row 3: Shift + letters/symbols + ↑ , .
   const row3after = symLayer
-    ? [{label:'Scr', send:'\x02[', cls:'pink'},{label:'Del', send:'\x1b[3~', cls:'pink'},{label:'>', send:'>'},{label:'PgU', send:'\x1b[5~', cls:'arrow'},{label:',', send:','},{label:'.', send:'.'}]
+    ? [{label:'Del', send:'\x1b[3~', cls:'pink'},{label:'>', send:'>'},{label:'\u2191', send:'\x1b[A', cls:'arrow'},{label:',', send:','},{label:'.', send:'.'}]
     : [{label:'\u2191', send:'\x1b[A', cls:'arrow'},{label:',', send:','},{label:'.', send:'.'}];
   addRow(rows[3].map(c => ({label: capsActive && c >= 'a' && c <= 'z' ? c.toUpperCase() : c,
     send: capsActive && c >= 'a' && c <= 'z' ? c.toUpperCase() : c})), {
     before:[{label:'Shift', mod:'shift', cls:'mod'}],
     after: row3after,
-    splitAt: symLayer ? 5 : undefined,
+    splitAt: symLayer ? 4 : undefined,
   });
   // row 4: ▼ Ctrl Alt [space] ← ↓ → ⌨
   addBottomRow();
@@ -506,12 +501,7 @@ function addBottomRow() {
     {label:'Ctrl', mod:'ctrl', cls:'mod'},
     {label:'Alt', mod:'alt', cls:'mod'},
   ];
-  const right = symLayer ? [
-    {label:'\u2190', send:'\x1b[D', cls:'arrow', repeat:true},
-    {label:'PgD', send:'\x1b[6~', cls:'arrow'},
-    {label:'\u2192', send:'\x1b[C', cls:'arrow', repeat:true},
-    {label:'\u2328', action:'toggle', cls:'toggle'},
-  ] : [
+  const right = [
     {label:'\u2190', send:'\x1b[D', cls:'arrow', repeat:true},
     {label:'\u2193', send:'\x1b[B', cls:'arrow'},
     {label:'\u2192', send:'\x1b[C', cls:'arrow', repeat:true},
