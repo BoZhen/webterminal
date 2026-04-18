@@ -298,6 +298,7 @@ term.onData(data => {
     let out = '';
     for (let i = 0; i < data.length; i++) {
       let ch = data[i];
+      if (modState.shift && ch === '\t') { out += '\x1b[Z'; continue; }
       if (modState.shift && ch >= 'a' && ch <= 'z') ch = ch.toUpperCase();
       if (modState.ctrl && ch >= ' ' && ch <= '~')
         ch = String.fromCharCode(ch.toUpperCase().charCodeAt(0) & 0x1f);
@@ -342,7 +343,7 @@ function bindBtn(el, fn, repeat) {
 const keysDiv = document.getElementById('keys');
 const compactKeys = [
   {label:'Esc',   send:'\x1b', cls:'pink'},
-  {label:'Tab',   send:'\t'},
+  {label:'Tab',   send:'\t', shifted:'\x1b[Z'},
   {label:'Ctrl',  mod:'ctrl'},
   {label:'Shift', mod:'shift'},
   {label:'\u2191',send:'\x1b[A', shifted:'\x1b[1;2A', cls:'arrow'},
@@ -433,7 +434,7 @@ function buildFullKB() {
   // row 1: Tab + letters/symbols + Sym/Main
   addRow(rows[1].map(c => ({label: capsActive && c >= 'a' && c <= 'z' ? c.toUpperCase() : c,
     send: capsActive && c >= 'a' && c <= 'z' ? c.toUpperCase() : c})), {
-    before:[{label:'Tab', send:'\t'}],
+    before:[{label:'Tab', send:'\t', shifted:'\x1b[Z'}],
     after:[{label: symLayer ? 'Main' : 'Sym', action:'sym', cls:'toggle'}]
   });
   // row 2: Caps + letters/symbols + ↵
@@ -527,8 +528,9 @@ function makeFK(k) {
     if (k.mod) { toggleMod(k.mod); return; }
 
     let data = k.send;
-    // Shift as one-shot modifier: uppercase letters, or send shifted arrow etc.
-    if (modState.shift && data.length === 1 && data >= 'a' && data <= 'z')
+    // Shift as one-shot modifier
+    if (modState.shift && k.shifted) data = k.shifted;
+    else if (modState.shift && data.length === 1 && data >= 'a' && data <= 'z')
       data = data.toUpperCase();
     if (modState.ctrl && data.length === 1 && data >= ' ' && data <= '~')
       data = String.fromCharCode(data.toUpperCase().charCodeAt(0) & 0x1f);
