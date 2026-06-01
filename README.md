@@ -2,7 +2,7 @@
 
 Lightweight web-based terminal with a mobile-friendly virtual keyboard. Single Python file, no build step. Powered by tmux for persistent sessions that survive browser disconnects.
 
-![Mobile web terminal screenshot](figs/view.jpg)
+<img src="figs/view.jpg" alt="Mobile web terminal screenshot" width="360">
 
 ## Features
 
