@@ -628,6 +628,10 @@ class IndexHandler(BasicAuthMixin, tornado.web.RequestHandler):
     def get(self):
         if not self._check_auth():
             return
+        # Force re-fetch on each load. Without this, phone browsers
+        # heuristically cache the HTML and keep showing the previous
+        # version after we ship a fix.
+        self.set_header("Cache-Control", "no-store")
         self.write(HTML)
 
 

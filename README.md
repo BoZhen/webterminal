@@ -2,6 +2,8 @@
 
 Lightweight web-based terminal with a mobile-friendly virtual keyboard. Single Python file, no build step. Powered by tmux for persistent sessions that survive browser disconnects.
 
+![Mobile web terminal screenshot](figs/view.jpg)
+
 ## Features
 
 - Full terminal via xterm.js + WebSocket, backed by tmux
@@ -39,6 +41,9 @@ python server.py
 ```
 
 Open `http://<host>:7700` in a browser.
+
+> [!WARNING]
+> This app exposes an interactive shell. Do not bind it to a public network without `WEBTERMINAL_AUTH` and an additional trusted boundary such as SSH tunneling, VPN, firewall rules, or a reverse proxy with TLS.
 
 ### URL parameters
 
