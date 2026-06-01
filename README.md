@@ -46,7 +46,7 @@ Open `http://<host>:7700` in a browser.
 > This app exposes an interactive shell. Do not bind it to a public network without `WEBTERMINAL_AUTH` and an additional trusted boundary such as SSH tunneling, VPN, firewall rules, or a reverse proxy with TLS.
 
 > [!NOTE]
-> If you use this with OMX, it may create extra tmux panes; close any unwanted pane with `Ctrl-b x` (then confirm when tmux prompts).
+> If you use this with OMX, extra tmux panes may come from the OMX HUD rather than webterminal itself. Close any unwanted pane with `Ctrl-b x` (then confirm when tmux prompts), or prevent new OMX-managed panes by launching OMX directly (`omx --direct ...`) or setting `OMX_LAUNCH_POLICY=direct`.
 
 ### URL parameters
 
