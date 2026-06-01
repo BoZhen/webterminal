@@ -45,6 +45,9 @@ Open `http://<host>:7700` in a browser.
 > [!WARNING]
 > This app exposes an interactive shell. Do not bind it to a public network without `WEBTERMINAL_AUTH` and an additional trusted boundary such as SSH tunneling, VPN, firewall rules, or a reverse proxy with TLS.
 
+> [!NOTE]
+> If you use this with OMX, it may create extra tmux panes; close any unwanted pane with `Ctrl-b x` (then confirm when tmux prompts).
+
 ### URL parameters
 
 | Parameter | Description |
