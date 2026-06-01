@@ -52,7 +52,9 @@ Open `http://<host>:7700` in a browser.
 
 The simplest safe way to reach the terminal from another device is a private mesh network like [Tailscale](https://tailscale.com/). Install it on both the host and your phone/laptop, then open `http://<tailscale-ip>:7700` from anywhere — no public port forwarding required, and all traffic stays inside the encrypted Tailscale tunnel.
 
-This pairs well with [agent-hub](https://github.com/BoZhen/agent-hub), which embeds this terminal over the same Tailscale network for mobile session monitoring and approval.
+If you have your own cloud server, [Nebula](https://github.com/slackhq/nebula) is a good alternative: you host the lighthouse yourself, so the relay stays under your control and latency is often lower.
+
+This pairs well with [agent-hub](https://github.com/BoZhen/agent-hub), which embeds this terminal over the same private network for mobile session monitoring and approval.
 
 ### URL parameters
 
